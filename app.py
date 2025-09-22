@@ -29,8 +29,16 @@ data = pd.read_csv(DATA_PATH)
 st.subheader("📂 Dataset Preview")
 st.dataframe(data.head(10), use_container_width=True)
 
-# Sidebar: Choose target & features
-target = st.sidebar.selectbox("🎯 Select Target Variable", data.columns)
+# ==============================
+# Target and Features
+# ==============================
+if "IsFraud" in data.columns:
+    target = "IsFraud"
+    st.sidebar.success("✅ Using `IsFraud` as target variable")
+else:
+    st.error("⚠️ Could not find `IsFraud` column in dataset. Please check your CSV.")
+    st.stop()
+
 features = st.sidebar.multiselect(
     "📊 Select Feature Columns",
     [c for c in data.columns if c != target],
@@ -53,7 +61,6 @@ if X.shape[1] == 0:
     st.stop()
 
 y = data[target]
-
 
 # Split & Scale
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
@@ -121,23 +128,33 @@ st.pyplot(fig)
 # Feature Importance (Random Forest only)
 if model_choice == "Random Forest":
     st.subheader("🔑 Feature Importance")
-    importances = pd.Series(model.feature_importances_, index=features).sort_values(ascending=False)
+    importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
     fig, ax = plt.subplots()
     sns.barplot(x=importances, y=importances.index, ax=ax)
     st.pyplot(fig)
 
 # ==============================
-# Test New Transaction
+# Test New Transaction (Cleaner UI)
 # ==============================
 st.subheader("🧪 Test a New Transaction")
-input_data = []
-for col in features:
-    val = st.number_input(f"{col}", float(X[col].min()), float(X[col].max()), float(X[col].mean()))
-    input_data.append(val)
 
-if st.button("Predict Fraud?"):
-    input_scaled = scaler.transform([input_data])
-    result = model.predict(input_scaled)[0]
-    prob = model.predict_proba(input_scaled)[0][1]
-    st.success(f"✅ Prediction: {'Fraudulent' if result==1 else 'Legit'}")
-    st.info(f"Fraud Probability: {prob:.2f}")
+with st.expander("Enter Transaction Details"):
+    input_data = []
+    cols = st.columns(3)  # 3 inputs per row
+
+    for idx, col in enumerate(X.columns):
+        col_min, col_max, col_mean = float(X[col].min()), float(X[col].max()), float(X[col].mean())
+        with cols[idx % 3]:  # distribute across 3 columns
+            val = st.number_input(f"{col}", col_min, col_max, col_mean)
+            input_data.append(val)
+
+    if st.button("🔎 Predict Fraud?"):
+        input_scaled = scaler.transform([input_data])
+        result = model.predict(input_scaled)[0]
+        prob = model.predict_proba(input_scaled)[0][1]
+
+        if result == 1:
+            st.error(f"🚨 Prediction: Fraudulent Transaction (Probability: {prob:.2f})")
+        else:
+            st.success(f"✅ Prediction: Legit Transaction (Probability: {prob:.2f})")
+
