@@ -11,14 +11,13 @@ from imblearn.over_sampling import SMOTE
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# -------------------------------
-# Streamlit Dashboard
-# -------------------------------
-st.title("Credit Card Fraud Detection Dashboard")
 
-st.sidebar.header("Settings")
+# Streamlit app DASHBOARD
+st.title('Credit Card Fraud Detection Dashboard')
 
-# Load dataset directly (no upload)
+st.sidebar.header("Upload and Settings")
+
+# Load dataset
 DATA_PATH = "credit_card_fraud_dataset(100k transactions).csv"
 data = pd.read_csv(DATA_PATH)
 
@@ -28,7 +27,7 @@ st.write(data.head())
 # Sidebar: Choose target & features
 target = st.sidebar.selectbox("Select Target Variable", data.columns)
 features = st.sidebar.multiselect(
-    "Select Feature Columns",
+    "Select feature columns",
     [c for c in data.columns if c != target],
     default=[c for c in data.columns if c != target]
 )
@@ -37,12 +36,20 @@ if not features:
     st.error("⚠️ Please select at least one feature column.")
     st.stop()
 
-# -------------------------------
-# Train/Test Split
-# -------------------------------
+# Define X and y
 X = data[features]
 y = data[target]
 
+# Show class distribution
+st.subheader("Target Variable Distribution")
+st.write(y.value_counts())
+
+# Check target validity
+if y.nunique() < 2:
+    st.error("❌ Target variable must have at least 2 unique classes (e.g., 0 and 1).")
+    st.stop()
+
+# Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.3, random_state=42, stratify=y
 )
@@ -56,9 +63,7 @@ X_test_scaled = scaler.transform(X_test)
 smote = SMOTE(random_state=42)
 X_train_res, y_train_res = smote.fit_resample(X_train_scaled, y_train)
 
-# -------------------------------
-# Model Selection
-# -------------------------------
+# Sidebar model choice
 st.sidebar.subheader("Choose Model")
 model_choice = st.sidebar.selectbox("Model", ["Logistic Regression", "Random Forest"])
 
@@ -71,9 +76,7 @@ else:
     )
     model.fit(X_train_res, y_train_res)
 
-# -------------------------------
-# Predictions & Evaluation
-# -------------------------------
+# Predictions
 y_pred = model.predict(X_test_scaled)
 y_prob = model.predict_proba(X_test_scaled)[:, 1]
 
@@ -89,9 +92,7 @@ ax.set_xlabel("Predicted")
 ax.set_ylabel("Actual")
 st.pyplot(fig)
 
-# -------------------------------
-# Predict New Transaction
-# -------------------------------
+# Predict new transaction
 st.subheader("🔎 Test a New Transaction")
 input_data = []
 for col in features:
