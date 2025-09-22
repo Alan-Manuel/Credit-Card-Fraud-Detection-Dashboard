@@ -44,8 +44,16 @@ if not features:
 # ==============================
 # Data Preprocessing
 # ==============================
-X = data[features]
+# Keep only numeric columns (drop IDs, merchant names, etc.)
+X = data[features].select_dtypes(include=[np.number])
+
+# If no numeric columns left, stop gracefully
+if X.shape[1] == 0:
+    st.error("⚠️ No numeric features available. Please select numeric columns for modeling.")
+    st.stop()
+
 y = data[target]
+
 
 # Split & Scale
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
