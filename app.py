@@ -205,5 +205,22 @@ with st.expander("Enter Transaction Details"):
         fig = exp.as_pyplot_figure()
         st.pyplot(fig)
 
+   # ==============================
+        # Human-friendly text summary(Easier Explanation)
+        # ==============================
+        st.subheader("📝 Explanation in Simple Words")
+
+        # Convert LIME output into plain text
+        lime_results = exp.as_list()
+        top_reasons = [f"{feat} ({'↑ Fraud' if weight > 0 else '↓ Legit'})" 
+                       for feat, weight in lime_results[:3]]  # take top 3
+
+        explanation_text = (
+            "This decision was mainly influenced by:\n"
+            + " • " + "\n • ".join(top_reasons)
+        )
+
+        st.info(explanation_text)
+
 
        
