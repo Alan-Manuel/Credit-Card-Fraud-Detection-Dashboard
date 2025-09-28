@@ -14,6 +14,10 @@ from sklearn.metrics import (
 )
 from imblearn.over_sampling import SMOTE
 
+# 🔍 NEW: Explainability with LIME
+import lime
+import lime.lime_tabular
+
 # ==============================
 # Streamlit App Layout
 # ==============================
@@ -113,6 +117,16 @@ y_pred = model.predict(X_test_scaled)
 y_prob = model.predict_proba(X_test_scaled)[:, 1]
 
 # ==============================
+# LIME Explainer Setup
+# ==============================
+lime_explainer = lime.lime_tabular.LimeTabularExplainer(
+    training_data=X_train_res,
+    feature_names=X.columns,
+    class_names=['Legit', 'Fraud'],
+    mode='classification'
+)
+
+# ==============================
 # Dashboard Sections
 # ==============================
 col1, col2 = st.columns(2)
@@ -145,7 +159,7 @@ ax.set_ylabel("True Positive Rate")
 ax.legend(loc="lower right")
 st.pyplot(fig)
 
-# Feature Importance
+# Feature Importance (for Random Forest)
 if model_choice == "Random Forest":
     st.subheader("🔑 Feature Importance")
     importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
@@ -177,3 +191,19 @@ with st.expander("Enter Transaction Details"):
             st.error(f"🚨 Prediction: Fraudulent Transaction (Probability: {prob:.2f})")
         else:
             st.success(f"✅ Prediction: Legit Transaction (Probability: {prob:.2f})")
+
+        # ==============================
+        # LIME Explanation (Local)
+        # ==============================
+        st.subheader("🔎 LIME Explanation (Top Features)")
+        exp = lime_explainer.explain_instance(
+            np.array(input_scaled[0]),
+            model.predict_proba,
+            num_features=10
+        )
+        st.write(exp.as_list())
+        fig = exp.as_pyplot_figure()
+        st.pyplot(fig)
+
+
+       
