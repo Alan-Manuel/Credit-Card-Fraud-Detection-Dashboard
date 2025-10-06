@@ -40,14 +40,45 @@ This interactive dashboard demonstrates how **machine learning models** can dete
 # Sidebar
 st.sidebar.header("⚙️ Settings")
 
+# ==============================
+# CSV Upload Feature
+# ==============================
+st.sidebar.subheader("📁 Upload CSV Dataset")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload your CSV file for analysis",
+    type=["csv"],
+    help="Upload a CSV file containing your transaction data."
+)
+
+# Sample dataset download option
+with open("credit_card_fraud_dataset(100k transactions).csv", "rb") as f:
+    st.sidebar.download_button(
+        label="⬇️ Download Sample Dataset",
+        data=f,
+        file_name="sample_credit_card_fraud.csv",
+        mime="text/csv"
+    )
+
 # Load dataset
-DATA_PATH = "credit_card_fraud_dataset(100k transactions).csv"
-data = pd.read_csv(DATA_PATH)
+if uploaded_file is not None:
+    st.sidebar.success("✅ File uploaded successfully!")
+    data = pd.read_csv(uploaded_file)
+else:
+    st.sidebar.info("ℹ️ No file uploaded. Using default dataset.")
+    DATA_PATH = "credit_card_fraud_dataset(100k transactions).csv"
+    data = pd.read_csv(DATA_PATH)
+
+# Validate dataset
+if "IsFraud" not in data.columns:
+    st.error("⚠️ The dataset must contain a target column named 'IsFraud'.")
+    st.stop()
 
 # ==============================
 # Dataset Preview
 # ==============================
-st.subheader("📂 Dataset Preview")
+st.subheader("📂 Dataset Overview")
+st.write(f"**Rows:** {data.shape[0]} | **Columns:** {data.shape[1]}")
 st.dataframe(data.head(10), use_container_width=True)
 
 # Fraud distribution pie chart
@@ -205,15 +236,14 @@ with st.expander("Enter Transaction Details"):
         fig = exp.as_pyplot_figure()
         st.pyplot(fig)
 
-   # ==============================
-        # Human-friendly text summary(Easier Explanation)
+        # ==============================
+        # Human-friendly Explanation
         # ==============================
         st.subheader("📝 Explanation in Simple Words")
 
-        # Convert LIME output into plain text
         lime_results = exp.as_list()
-        top_reasons = [f"{feat} ({'↑ Fraud' if weight > 0 else '↓ Legit'})" 
-                       for feat, weight in lime_results[:3]]  # take top 3
+        top_reasons = [f"{feat} ({'↑ Fraud' if weight > 0 else '↓ Legit'})"
+                       for feat, weight in lime_results[:3]]
 
         explanation_text = (
             "This decision was mainly influenced by:\n"
@@ -221,6 +251,3 @@ with st.expander("Enter Transaction Details"):
         )
 
         st.info(explanation_text)
-
-
-       
