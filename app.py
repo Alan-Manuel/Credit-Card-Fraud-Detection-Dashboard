@@ -42,7 +42,7 @@ if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
 else:
     st.sidebar.info("ℹ️ No file uploaded. Using default dataset.")
-    DATA_PATH = "credit_card_fraud_dataset(100k transactions).csv"
+    DATA_PATH = "credit_card_fraud_dataset.csv"
     data = pd.read_csv(DATA_PATH)
 
 if "IsFraud" not in data.columns:
