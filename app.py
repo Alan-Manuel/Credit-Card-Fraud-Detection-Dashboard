@@ -10,11 +10,11 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     classification_report, confusion_matrix, roc_auc_score,
-    roc_curve
+    roc_curve, precision_recall_curve
 )
 from imblearn.over_sampling import SMOTE
+from xgboost import XGBClassifier  
 
-# 🔍 NEW: Explainability with LIME
 import lime
 import lime.lime_tabular
 
@@ -25,42 +25,20 @@ st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
 st.title("💳 Credit Card Fraud Detection Dashboard")
 st.markdown("---")
 
-# Intro section
 st.markdown("""
 ### ℹ️ About This Dashboard
-This interactive dashboard demonstrates how **machine learning models** can detect fraudulent credit card transactions.  
-
-- The dataset contains **100,000 simulated transactions**.  
-- Each transaction has details like **amount, type, merchant, and location**.  
-- Fraudulent transactions are rare (~1%), so we use **SMOTE** to balance the dataset.  
-
-👉 Use the sidebar to choose features and models, explore results, and even test your own transaction!
+Detect fraudulent credit card transactions using multiple ML models.  
+The dataset is heavily imbalanced (~1% fraud), so we use **SMOTE**, **XGBoost**, and **threshold tuning** to improve recall and ROC-AUC.
 """)
 
-# Sidebar
 st.sidebar.header("⚙️ Settings")
 
 # ==============================
 # CSV Upload Feature
 # ==============================
 st.sidebar.subheader("📁 Upload CSV Dataset")
+uploaded_file = st.sidebar.file_uploader("Upload your CSV file", type=["csv"])
 
-uploaded_file = st.sidebar.file_uploader(
-    "Upload your CSV file for analysis",
-    type=["csv"],
-    help="Upload a CSV file containing your transaction data."
-)
-
-# Sample dataset download option
-with open("credit_card_fraud_dataset(100k transactions).csv", "rb") as f:
-    st.sidebar.download_button(
-        label="⬇️ Download Sample Dataset",
-        data=f,
-        file_name="sample_credit_card_fraud.csv",
-        mime="text/csv"
-    )
-
-# Load dataset
 if uploaded_file is not None:
     st.sidebar.success("✅ File uploaded successfully!")
     data = pd.read_csv(uploaded_file)
@@ -69,7 +47,6 @@ else:
     DATA_PATH = "credit_card_fraud_dataset(100k transactions).csv"
     data = pd.read_csv(DATA_PATH)
 
-# Validate dataset
 if "IsFraud" not in data.columns:
     st.error("⚠️ The dataset must contain a target column named 'IsFraud'.")
     st.stop()
@@ -84,13 +61,8 @@ st.dataframe(data.head(10), use_container_width=True)
 # Fraud distribution pie chart
 fraud_counts = data['IsFraud'].value_counts()
 fig, ax = plt.subplots()
-ax.pie(
-    fraud_counts,
-    labels=["Legit", "Fraud"],
-    autopct='%1.1f%%',
-    colors=["#4CAF50", "#FF5252"],
-    startangle=90
-)
+ax.pie(fraud_counts, labels=["Legit", "Fraud"], autopct='%1.1f%%',
+       colors=["#4CAF50", "#FF5252"], startangle=90)
 ax.set_title("Fraud vs Legit Transactions")
 st.pyplot(fig)
 
@@ -103,7 +75,6 @@ features = st.sidebar.multiselect(
     [c for c in data.columns if c != target],
     default=[c for c in data.columns if c != target]
 )
-
 if not features:
     st.error("⚠️ Please select at least one feature column.")
     st.stop()
@@ -111,65 +82,71 @@ if not features:
 # ==============================
 # Data Preprocessing
 # ==============================
-X = data[features].select_dtypes(include=[np.number])
-if X.shape[1] == 0:
-    st.error("⚠️ No numeric features available. Please select numeric columns for modeling.")
-    st.stop()
-
+X = data[features]
 y = data[target]
 
+# ✅ Encode categoricals
+X = pd.get_dummies(X, drop_first=True)
+
+# Train/test split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.3, random_state=42, stratify=y
 )
 
+# Scale numeric features
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Handle imbalance
-smote = SMOTE(random_state=42)
+# ✅ Handle imbalance with tuned SMOTE
+smote = SMOTE(random_state=42, sampling_strategy=0.2)
 X_train_res, y_train_res = smote.fit_resample(X_train_scaled, y_train)
 
 # ==============================
 # Model Selection
 # ==============================
 st.sidebar.subheader("🤖 Choose Model")
-model_choice = st.sidebar.selectbox("Model", ["Logistic Regression", "Random Forest"])
+model_choice = st.sidebar.selectbox("Model", ["Logistic Regression", "Random Forest", "XGBoost"])
 
 if model_choice == "Logistic Regression":
     model = LogisticRegression(max_iter=1000, class_weight="balanced")
+elif model_choice == "Random Forest":
+    model = RandomForestClassifier(n_estimators=200, random_state=42, class_weight="balanced")
 else:
-    model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight="balanced")
+    # ✅ XGBoost for stronger performance
+    model = XGBClassifier(
+        n_estimators=400,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        scale_pos_weight=(len(y_train_res) / sum(y_train_res)),
+        use_label_encoder=False,
+        eval_metric='logloss',
+        random_state=42
+    )
 
 model.fit(X_train_res, y_train_res)
 
-# Predictions
-y_pred = model.predict(X_test_scaled)
+# ==============================
+# Prediction & Threshold Tuning
+# ==============================
+st.sidebar.subheader("🎚️ Prediction Threshold")
+threshold = st.sidebar.slider("Fraud Probability Cutoff", 0.0, 1.0, 0.5, 0.05)
+
 y_prob = model.predict_proba(X_test_scaled)[:, 1]
+y_pred = (y_prob > threshold).astype(int)
 
 # ==============================
-# LIME Explainer Setup
-# ==============================
-lime_explainer = lime.lime_tabular.LimeTabularExplainer(
-    training_data=X_train_res,
-    feature_names=X.columns,
-    class_names=['Legit', 'Fraud'],
-    mode='classification'
-)
-
-# ==============================
-# Dashboard Sections
+# Model Evaluation
 # ==============================
 col1, col2 = st.columns(2)
-
-# Column 1 - Metrics
 with col1:
     st.subheader("📈 Model Evaluation")
     st.text("Classification Report")
-    st.code(classification_report(y_test, y_pred), language="text")
+    st.code(classification_report(y_test, y_pred, digits=3), language="text")
     st.metric("ROC-AUC", f"{roc_auc_score(y_test, y_prob):.3f}")
 
-# Column 2 - Confusion Matrix
 with col2:
     st.subheader("🔍 Confusion Matrix")
     cm = confusion_matrix(y_test, y_pred)
@@ -179,75 +156,63 @@ with col2:
     ax.set_ylabel("Actual")
     st.pyplot(fig)
 
+# ==============================
 # ROC Curve
+# ==============================
 st.subheader("📉 ROC Curve")
 fpr, tpr, _ = roc_curve(y_test, y_prob)
 fig, ax = plt.subplots()
-ax.plot(fpr, tpr, label=f"ROC AUC = {roc_auc_score(y_test, y_prob):.3f}")
+ax.plot(fpr, tpr, label=f"ROC-AUC = {roc_auc_score(y_test, y_prob):.3f}")
 ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
-ax.set_xlabel("False Positive Rate")
-ax.set_ylabel("True Positive Rate")
 ax.legend(loc="lower right")
 st.pyplot(fig)
 
-# Feature Importance (for Random Forest)
-if model_choice == "Random Forest":
+# ✅ Precision-Recall Curve
+st.subheader("🎯 Precision-Recall Curve")
+prec, rec, thr = precision_recall_curve(y_test, y_prob)
+fig, ax = plt.subplots()
+ax.plot(rec, prec)
+ax.set_xlabel("Recall")
+ax.set_ylabel("Precision")
+st.pyplot(fig)
+
+# Feature Importance (RF & XGB)
+if model_choice in ["Random Forest", "XGBoost"]:
     st.subheader("🔑 Feature Importance")
-    importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
+    importances = (
+        model.feature_importances_ if model_choice == "XGBoost"
+        else model.feature_importances_
+    )
+    importance_df = pd.Series(importances, index=X.columns).sort_values(ascending=False)
     fig, ax = plt.subplots()
-    sns.barplot(x=importances, y=importances.index, ax=ax)
+    sns.barplot(x=importance_df, y=importance_df.index, ax=ax)
     st.pyplot(fig)
 
 # ==============================
-# Test New Transaction
+# LIME + Manual Transaction
 # ==============================
 st.subheader("🧪 Test a New Transaction")
+lime_explainer = lime.lime_tabular.LimeTabularExplainer(
+    training_data=X_train_res,
+    feature_names=X.columns,
+    class_names=['Legit', 'Fraud'],
+    mode='classification'
+)
 
 with st.expander("Enter Transaction Details"):
     input_data = []
-    cols = st.columns(3)  # 3 inputs per row
-
-    for idx, col in enumerate(X.columns):
+    cols = st.columns(3)
+    for idx, col in enumerate(X.columns[:9]):  # limit to key inputs
         col_min, col_max, col_mean = float(X[col].min()), float(X[col].max()), float(X[col].mean())
         with cols[idx % 3]:
             val = st.number_input(f"{col}", col_min, col_max, col_mean)
             input_data.append(val)
 
     if st.button("🔎 Predict Fraud?"):
-        input_scaled = scaler.transform([input_data])
+        input_scaled = scaler.transform([input_data + [0]*(X_train.shape[1]-len(input_data))])
         result = model.predict(input_scaled)[0]
         prob = model.predict_proba(input_scaled)[0][1]
-
         if result == 1:
-            st.error(f"🚨 Prediction: Fraudulent Transaction (Probability: {prob:.2f})")
+            st.error(f"🚨 Fraudulent (Prob: {prob:.2f})")
         else:
-            st.success(f"✅ Prediction: Legit Transaction (Probability: {prob:.2f})")
-
-        # ==============================
-        # LIME Explanation (Local)
-        # ==============================
-        st.subheader("🔎 LIME Explanation (Top Features)")
-        exp = lime_explainer.explain_instance(
-            np.array(input_scaled[0]),
-            model.predict_proba,
-            num_features=10
-        )
-        st.write(exp.as_list())
-        fig = exp.as_pyplot_figure()
-        st.pyplot(fig)
-
-        # ==============================
-        # Human-friendly Explanation
-        # ==============================
-        st.subheader("📝 Explanation in Simple Words")
-
-        lime_results = exp.as_list()
-        top_reasons = [f"{feat} ({'↑ Fraud' if weight > 0 else '↓ Legit'})"
-                       for feat, weight in lime_results[:3]]
-
-        explanation_text = (
-            "This decision was mainly influenced by:\n"
-            + " • " + "\n • ".join(top_reasons)
-        )
-
-        st.info(explanation_text)
+            st.success(f"✅ Legitimate (Prob: {prob:.2f})")
