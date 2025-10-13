@@ -10,7 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     classification_report, confusion_matrix, roc_auc_score,
-    roc_curve
+    roc_curve, precision_recall_curve, average_precision_score
 )
 from imblearn.over_sampling import SMOTE
 import lime
@@ -154,7 +154,9 @@ with col2:
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
     st.pyplot(fig)
 
+# ==============================
 # ROC Curve
+# ==============================
 st.subheader("📉 ROC Curve")
 fpr, tpr, _ = roc_curve(y_test, y_prob)
 fig, ax = plt.subplots()
@@ -163,7 +165,27 @@ ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
 ax.legend(loc="lower right")
 st.pyplot(fig)
 
+# ==============================
+# Precision-Recall Curve
+# ==============================
+st.subheader("📊 Precision-Recall Curve")
+
+# Compute Precision-Recall curve
+precision, recall, thresholds = precision_recall_curve(y_test, y_prob)
+avg_precision = average_precision_score(y_test, y_prob)
+
+fig, ax = plt.subplots()
+ax.plot(recall, precision, color="purple", linewidth=2, label=f"AP = {avg_precision:.3f}")
+ax.set_xlabel("Recall")
+ax.set_ylabel("Precision")
+ax.set_title("Precision-Recall Curve")
+ax.legend(loc="lower left")
+ax.grid(True)
+st.pyplot(fig)
+
+# ==============================
 # Feature Importance
+# ==============================
 if model_choice == "Random Forest":
     st.subheader("🔑 Feature Importance")
     importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
@@ -213,4 +235,4 @@ with st.expander("Enter Transaction Details"):
         top_reasons = [f"{feat} ({'↑ Fraud' if weight > 0 else '↓ Legit'})"
                        for feat, weight in lime_results[:3]]
         explanation_text = "This decision was mainly influenced by:\n" + " • " + "\n • ".join(top_reasons)
-        st.info(explanation_text) 
+        st.info(explanation_text)
