@@ -1,6 +1,6 @@
 [theme]
 base="dark"
-primaryColor="#00ADB5"
+primaryColor="#FFD369"  # yellow-gold accent
 backgroundColor="#121212"
 secondaryBackgroundColor="#1E1E1E"
 textColor="#FAFAFA"
