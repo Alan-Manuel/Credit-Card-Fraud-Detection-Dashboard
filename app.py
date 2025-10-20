@@ -54,9 +54,9 @@ if uploaded_file is not None:
     st.sidebar.success("✅ File uploaded successfully!")
     data = pd.read_csv(uploaded_file)
 elif dataset_choice == "Synthetic Dataset (5% fraud)":
-    data = pd.read_csv("data/synthetic_fraudulent_credit_card_transactions.csv")
+    data = pd.read_csv("synthetic_fraudulent_credit_card_transactions.csv")
 else:
-    data = pd.read_csv("data/credit_fraud_dataset.csv")
+    data = pd.read_csv("credit_card_fraud_dataset.csv")
 
 # -----------------------------
 # Dataset Preview
