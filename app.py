@@ -28,14 +28,49 @@ st.set_page_config(page_title="Credit Card Fraud Detection", layout="wide")
 st.title("💳 Credit Card Fraud Detection Dashboard")
 st.markdown("---")
 
+# -----------------------------
+# Intro Section
+# -----------------------------
 st.markdown("""
 ### ℹ️ About This Dashboard
 This dashboard demonstrates **two fraud detection strategies**:
-- **Supervised learning** (when your dataset has a target column `IsFraud`)
-- **Unsupervised learning** (when the dataset has no target, only numeric features)
+- 🧩 **Supervised learning** (when your dataset has a target column `IsFraud`)
+- 🧠 **Unsupervised learning** (when the dataset has no target, only numeric features)
 
-👉 Upload your CSV or test with the default Kaggle or Synthetic dataset.
+👉 You can use the **default Kaggle or Synthetic datasets**, or **upload your own CSV** to see how the models behave.
 """)
+
+# -----------------------------
+# New Section: How the Dashboard Works
+# -----------------------------
+with st.expander("🧭 How This Dashboard Works", expanded=True):
+    st.markdown("""
+    ### 🧠 Smart Mode Detection
+    This app automatically detects your dataset type:
+    - If your dataset includes a column named **`IsFraud`**, the app runs **Supervised Learning**.
+      - It trains **Logistic Regression** and **Random Forest** models to classify transactions as *fraud* or *legit*.
+      - Uses **SMOTE** to balance class imbalance.
+      - Uses **LIME** to explain model predictions in simple, human-readable terms.
+    - If your dataset does **not include** `IsFraud`, the app automatically switches to **Unsupervised Learning**.
+      - It applies **Isolation Forest**, which identifies *anomalies* — transactions that deviate from normal behavior.
+
+    ### 🧩 Real-World Analogy
+    In real-world fraud detection:
+    - Historical, labeled data → **Supervised mode** trains predictive models.
+    - New, unlabeled live transactions → **Unsupervised mode** detects unusual patterns.
+
+    ### ⚙️ How to Use
+    1. **Choose or upload** a dataset in the sidebar:
+       - `Kaggle Dataset (99% legit)` → heavily imbalanced, real-world-like.
+       - `Synthetic Dataset (5% fraud)` → balanced and easier for models.
+       - or **Upload your own CSV**.
+    2. The app auto-detects whether your dataset has the `IsFraud` label.
+    3. Adjust settings (e.g., model type, contamination rate).
+    4. Explore results — fraud ratios, confusion matrix, ROC & PR curves.
+    5. Optionally, test a **new transaction manually** and view a **LIME explanation**.
+
+    💡 *If you upload a dataset without a target label, the app will automatically switch to anomaly detection (Isolation Forest).*
+    """)
 
 # -----------------------------
 # Sidebar: Dataset Options
@@ -101,13 +136,11 @@ mode = resolve_mode(mode_choice, has_target)
 def run_unsupervised(df):
     st.warning("🧠 Running Unsupervised Mode (Isolation Forest — no `IsFraud` column found).")
 
-    # Use numeric features
     X = df.select_dtypes(include=[np.number])
     if X.shape[1] == 0:
         st.error("⚠️ No numeric columns found for anomaly detection.")
         st.stop()
 
-    # Sidebar control
     st.sidebar.subheader("🧪 Isolation Forest Settings")
     contamination = st.sidebar.slider(
         "Assumed Fraud Rate (contamination)", min_value=0.01, max_value=0.20,
@@ -143,7 +176,6 @@ def run_supervised(df):
     st.subheader("📊 Label Distribution")
     plot_pie(df[target], title="Fraud vs Legit Transactions")
 
-    # Feature selection
     all_feats = [c for c in df.columns if c != target]
     st.sidebar.subheader("📊 Feature Selection")
     features = st.sidebar.multiselect("Select Feature Columns", all_feats, default=all_feats)
@@ -159,7 +191,6 @@ def run_supervised(df):
 
     y = df[target].astype(int)
 
-    # Split + scale + balance
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3,
                                                         random_state=42, stratify=y)
     scaler = StandardScaler()
@@ -169,7 +200,6 @@ def run_supervised(df):
     smote = SMOTE(random_state=42)
     X_train_res, y_train_res = smote.fit_resample(X_train_s, y_train)
 
-    # Model choice
     st.sidebar.subheader("🤖 Choose Model")
     model_choice = st.sidebar.selectbox("Model", ["Logistic Regression", "Random Forest"])
 
@@ -182,7 +212,6 @@ def run_supervised(df):
     y_pred = model.predict(X_test_s)
     y_prob = model.predict_proba(X_test_s)[:, 1]
 
-    # LIME explainer
     lime_explainer = lime.lime_tabular.LimeTabularExplainer(
         training_data=X_train_res,
         feature_names=X.columns.tolist(),
@@ -190,7 +219,6 @@ def run_supervised(df):
         mode="classification"
     )
 
-    # Evaluation
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📈 Model Evaluation")
@@ -204,7 +232,6 @@ def run_supervised(df):
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
         st.pyplot(fig)
 
-    # ROC
     st.subheader("📉 ROC Curve")
     fpr, tpr, _ = roc_curve(y_test, y_prob)
     fig, ax = plt.subplots()
@@ -213,7 +240,6 @@ def run_supervised(df):
     ax.legend(loc="lower right")
     st.pyplot(fig)
 
-    # Precision-Recall
     st.subheader("📊 Precision-Recall Curve")
     precision, recall, _ = precision_recall_curve(y_test, y_prob)
     ap = average_precision_score(y_test, y_prob)
@@ -223,7 +249,6 @@ def run_supervised(df):
     ax.set_title("Precision-Recall Curve"); ax.legend(loc="lower left"); ax.grid(True)
     st.pyplot(fig)
 
-    # Feature Importance
     if model_choice == "Random Forest":
         st.subheader("🔑 Feature Importance")
         importances = pd.Series(model.feature_importances_, index=X.columns).sort_values(ascending=False)
@@ -231,7 +256,6 @@ def run_supervised(df):
         sns.barplot(x=importances, y=importances.index, ax=ax)
         st.pyplot(fig)
 
-    # Try a new transaction
     st.subheader("🧪 Test a New Transaction")
     with st.expander("Enter Transaction Details"):
         input_vals = []
