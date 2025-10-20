@@ -1,6 +1,6 @@
 [theme]
 base="dark"
-primaryColor="#FFD369"  # yellow-gold accent
+primaryColor="#FF5252"  # Streamlit default red - high contrast
 backgroundColor="#121212"
 secondaryBackgroundColor="#1E1E1E"
 textColor="#FAFAFA"
